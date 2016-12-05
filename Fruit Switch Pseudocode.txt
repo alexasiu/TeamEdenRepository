@@ -1,0 +1,70 @@
+/****************************************************************************
+ Module
+   FruitSwitch.c
+
+ Description
+   Does Debouncing on Fruit switch; Posts to Fruit service
+ 
+Author
+ Harine Ravichandiran
+****************************************************************************/
+
+InitFruitSwitch
+Takes a priority number, returns True.
+	Initialize the MyPriority variable with the passed in parameter.
+	Initialize the port line to monitor the button
+	Wait for peripheral clock
+	Set Flip switch pin to input
+	Sample the button port pin and use it to initialize LastFlipbookSwitchState
+	Set CurrentState to be Debouncing
+	Start debounce timer (timer posts to PostFruitSwitch)
+	Post Event ES_Init to SwitchService queue (this service)
+End of InitFruitSwitch
+
+**************************************************************************
+
+PostFruitSwitch
+Posts an event to this state machine's queue, returns false if the Enqueue operation failed, true otherwise
+End PostFruitSwitch
+
+**************************************************************************
+
+RunFruitSwitch
+Takes an ES_Event, returns ES_NO_EVENT if no error ES_ERROR otherwise
+
+	If CurrentState is Debouncing
+		If EventType is ES_TIMEOUT & parameter is debounce timer number
+			Set CurrentState to Ready2Sample
+		Endif
+	Endif
+  	Else if CurrentState is Ready2Sample
+		If EventType is ES_FruitSwitchUp
+			Start debounce timer
+			Set CurrentState to Debouncing
+		Endif
+    		If EventType is ES_FruitSwitchDown
+			Start debounce timer
+      			Set CurrentState to Debouncing
+      			Post ES_FR_DISP_DONE to FruitDispenseService
+		Endif
+	End Else
+  	Return ES_NO_EVENT
+End of RunFruitSwitch
+
+**************************************************************************
+CheckFruitSwitchEvents
+	Local ReturnVal = False, CurrentSwitchState
+	Set CurrentSwitchState to state read from port pin
+	If the CurrentSwitchState is different from the LastFlipbookSwitchState
+		Set ReturnVal = True
+		If the CurrentSwitchState is down, (the value of the seed pin will be high)
+			PostEvent FlipbookSwitchDown to FlipbookSwitch queue
+		Endif
+        	If the pin is not down (the switch is open, pin to ground)
+			PostEvent FlipbookSwitchUp to FlipbookSwitch queue
+		Endif	
+   	Endif
+    Set LastSwitchState to the CurrentSwitchState
+    Return ReturnVal
+End of CheckFruitSwitchEvents
+**************************************************************************

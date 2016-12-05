@@ -1,0 +1,56 @@
+/****************************************************************************
+ Module
+   FruitDispenseService.c
+
+ Description
+   Controls Fruit motor
+ 
+Author
+ Harine Ravichandiran
+****************************************************************************/
+
+InitFruitService
+	Takes a priority number, returns True.
+	Set CurrentState to be InitFruitDisp
+	Post Event ES_Init to PostFruitService queue (this service)
+End of InitFruitService
+
+**************************************************************************
+
+PostFruitService
+Posts an event to this state machine's queue, returns false if the Enqueue operation failed, true otherwise
+PostFruitService
+
+**************************************************************************
+
+RunFruitService
+Takes an ES_Event, returns ES_NO_EVENT if no error ES_ERROR otherwise
+Local Variables: NextState
+
+	Set NextFruitState to CurrentState
+	Based on the state of the CurrentState variable choose one of the following blocks of code:
+		CurrentState is InitFruitService
+			if ThisEvent is ES_INIT
+                		Sets the frequency of the PWM pin
+				Set NextState to Wait4Flip3DoneFr
+			Endif
+		End case Initialize Fruit Dispensing block
+		
+		CurrentState is Wait4Flip3Done
+			if ThisEvent event type is ES_F3_DONE
+				Turn motor on
+				Set NextState to FruitDispensing
+			EndIf
+		End Wait4Flip3Done block 
+			
+		CurrentState is Wait4FrDispDone
+			if ThisEvent event type is ES_TIMEOUT,
+				Stop the motor
+				Set NextState to InitFruitDisp
+			Endif
+		End of Wait4FrDispDone block
+  	Return ES_NO_EVENT
+End of RunFruitService
+
+**************************************************************************
+
