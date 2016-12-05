@@ -1,0 +1,171 @@
+/****************************************************************************
+ Module
+   AirService.c
+
+Listens to the IR receivers, interprets hand movement speed and posts 
+to flipbook3 service. Also controls the LEDs that tell the user which 
+IR sensor they should be triggering with their hand.
+
+****************************************************************************/
+
+InitAirService
+Takes a priority number, returns True.
+	Initialize the MyPriority variable with the passed in parameter.
+	Initialize port A line to sense the IR
+	Enable IR1 pin and set as input
+	Read IR1 pin and update the LastIR1State variable
+	Enable IR2 pin and set as input
+	Read IR2 pin and update the LastIR2State variable
+	Initialize port C line to control the Air LEDs 
+	Enable LED1 pin and set as output
+	Enable LED2 pin and set as output
+	Start with LED1 and LED2 off
+	Set CurrentState to be InitAir
+	Post Event ES_Init to AirService queue (this service)
+End of InitAirService
+
+**************************************************************************
+
+PostAirService
+Posts an event to this state machine's queue, returns false if the Enqueue operation failed, true otherwise
+End PostAirService
+
+**************************************************************************
+
+RunAirService
+Takes an ES_Event, returns ES_NO_EVENT if no error ES_ERROR otherwise
+
+Based on the state of the CurrentState variable choose one of the following blocks of code:
+	Set NextState to CurrentState
+	CurrentState is InitAir:
+		if ThisEvent is an ES_INIT
+			Set all LEDs lo
+			Set NextState to Wait4HarvestingIR;
+		Endif
+	End InitAir block
+		
+	CurrentState is Wait4Harvesting
+		if ThisEvent is ES_START_HARVEST
+			Turn on LED corresponding to IR1
+			Save the PrevEvent as IR2
+			Set the IR_Count to 0
+			Set NextState to HarvestingIR1
+		Endif
+		
+		if ThisEvent is an ES_RESET
+			Turn off all the LEDs
+			Post an ES_DONE_INIT to the MainService
+			Set NextState to InitAirService
+		Endif
+	End Wait4Harvesting block
+		
+	CurrentState is Harvesting_IR1
+		if ThisEvent is IR1_HI and PrevEvent was not the same
+			Increment IR_Count
+			Save the event type to PrevEvent
+			if this is the end of harvesting (we have more than 10 counts)
+				Turn off all the LEDs
+				Post ES_DONE_HARVEST event to Flipbook3Service and LED Service
+				Set NextState to Wait4Celebration
+			else continue to toggle the LEDs
+				Turn off the LED corresponding to IR1
+				Turn on the LED corresponding to IR2
+				Set NextState to Harvesting_IR2
+			Endif
+		else if ThisEvent is ES_RESET
+			Turn off all the LEDs
+			Post an ES_DONE_INIT to the MainService
+			Set NextState to InitAirService
+		Endif
+	End Harvesting_IR1 block
+			
+	CurrentState is Harvesting_IR2
+		if ThisEvent is IR2_HI and PrevEvent was not the same
+			Increment IR_Count
+			Save the event type to PrevEvent
+			if this is the end of harvesting (we have more than 10 counts)
+				Turn off all the LEDs
+				Post ES_DONE_HARVEST event to Flipbook3Service and LED Service
+				Set NextState to Wait4Celebration
+			else continue to toggle the LEDs
+				Turn off the LED corresponding to IR2
+				Turn on the LED corresponding to IR1
+				Set NextState to Harvesting_IR2
+			Endif
+		else if ThisEvent is ES_RESET
+			Turn off all the LEDs
+			Post an ES_DONE_INIT to the MainService
+			Set NextState to InitAirService
+		Endif
+	End Harvesting_IR2 block
+		
+	CurrentState is Wait4CelebrationIR
+		if ThisEvent is ES_RESET
+			Turn off all the LEDs
+			Post an ES_DONE_INIT to the MainService
+			Set NextState to InitAirService
+		Endif
+	End Wait4CelebrationIR block
+
+End State Machine block
+
+Set CurrentState to NextState
+return ReturnEvent
+
+End of RunAirService
+
+**************************************************************************
+
+QueryAirService
+Returns the current state of the AirService state machine
+
+**************************************************************************
+
+
+**************************************************************************
+
+Check4IR_1
+Takes no parameters, returns True if an event posted
+	Local ReturnVal = False, CurrentAccState
+	Set CurrentIR_1State to state read from port pin
+	If the CurrentIR_1State is different from LastIR_1State
+		Set ReturnVal = True
+		If CurrentIR_1State is Hi (hand is there)
+			Post ES_IR1_HI to AirService
+		Endif
+	Endif
+	Set LastAccState to the CurrentAccState
+	Return ReturnVal
+End of Check4IR_1
+
+**************************************************************************
+
+Check4IR_2
+Takes no parameters, returns True if an event posted
+	Local ReturnVal = False, CurrentAccState
+	Set CurrentIR_1State to state read from port pin
+	If the CurrentIR_2State is different from LastIR_2State
+		Set ReturnVal = True
+		If CurrentIR_2State is Hi (hand is there)
+			Post ES_IR2_HI to AirService
+		Endif
+	Endif
+	Set LastAccState to the CurrentAccState
+	Return ReturnVal
+End of Check4IR_2
+
+**************************************************************************
+
+
+/***************************************************************************
+ private functions
+**************************************************************************
+
+UpdateIR1State
+Return the current state of the IR1 pin
+
+**************************************************************************
+
+UpdateIR2State
+Return the current state of the IR2 pin
+

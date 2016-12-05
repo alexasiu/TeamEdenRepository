@@ -1,0 +1,81 @@
+/****************************************************************************
+ Module
+   MainStoryService.c
+
+ Description
+   This handles celebration and reset of all services.
+
+****************************************************************************/
+
+InitMainService 
+Takes a priority number, returns True. 
+	Initialize the MyPriority variable with the passed in parameter.
+	Set CurrentState to InitMain;
+	Post Event ES_Init to MainStoryService queue (this service)
+End of InitMainService
+
+**************************************************************************
+
+bool PostMainService
+Posts an event to this state machine's queue, returns false if the Enqueue operation failed, true otherwise
+End PostMainService
+
+**************************************************************************
+
+RunMainService
+(implements the state machine for MainStory Service)
+The EventType field of ThisEvent will be one of: ES_INIT, ES_SEED_DETECTED, ES_F3_DONE, ES_TIMEOUT, ES_RESET, ES_DONE_INIT
+Local Variables: NextState
+ 	Set NextState to CurrentState;
+	Based on the state of the CurrentState variable choose one of the following blocks of code:
+		CurrentState is InitMain:
+			if ThisEvent is ES_INIT
+				Reset the count of services done resetting to 0
+				Set next state to wait4seed
+		End InitMain block
+
+		CurrentState is Wait4Seed_M: 
+			if ThisEvent is ES_SEED_DETECTED
+				Start the GAME_TIMER to GAME_TIME
+				Set NextState to Wait4AllFlips
+			else if ThisEvent is ES_RESET
+				Post reset to all services
+				Set NextState to Wait4Reset
+		End Wait4Seed_M block
+	
+		CurrentState is Wait4AllFlips:
+			if ThisEvent is ES_F3_DONE 
+				Post to all services an ES_CELEBRATION event
+				Start the celebration timer CELEB_TIMER to 10 seconds
+				Set NextState to Celebrating
+			else if ThisEvent is ES_TIMEOUT and it corresponds to GAME_TIMER
+				Post reset to all services
+				Set the next state to Wait4Reset
+			else if ThisEvent is ES_RESET
+				Post reset to all services
+				Set NextState to Wait4Reset
+			Endif
+		End of Wait4AllFlips block
+			
+		CurrentState is Celebrating:
+			If ThisEvent is a timeout (from game timer or celeb timer)
+				Post reset to all services
+				Set NextState to Wait4Reset
+			else if ThisEvent is ES_RESET
+				Post reset to all services
+				Set NextState to Wait4Reset
+			Endif
+		End of Celebrating block
+
+		CurrentState is Wait4Reset
+			if ThisEvent is ES_DONE_INIT 
+				Increment the counter to keep track of services done
+				if all services are done (at least 6 counts)
+					Post an ES_INIT event so all services can re-initialize
+					Set NextState to InitMain
+				Endif
+			Endif
+		End of Wait4Reset block
+	End of SM
+	Set CurrentState to NextState
+  	return ReturnEvent;

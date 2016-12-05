@@ -1,0 +1,114 @@
+/****************************************************************************
+ Module
+   Flipbook3Service.c
+
+   Controls F3 motor that spins the flipbook's animations.
+
+****************************************************************************/
+
+InitFlip3Service
+Takes a priority number, returns True. 
+	Initialize the MyPriority variable with the passed in parameter.
+	Initialize the port line to run Flipbook 3 motor 
+	Enable PWM
+	Set CurrentState to be InitFlip3Service
+	Post Event ES_Init to Flipbook3Service queue (this service)
+End of InitializeButton (return True)
+
+**************************************************************************
+
+PostFlip3Service
+Posts an event to this state machine's queue, returns false if the Enqueue operation failed, true otherwise
+End PostFlip3Service
+
+**************************************************************************
+
+RunFlip3Service (implements the state machine for Flipbook3 Service)
+The EventType field of ThisEvent will be one of: ES_INIT, ES_TIMEOUT, ES_F2_DONE, ES_START_HARVEST, ES_DONE_HARVEST, ES_F3_DONE, ES_CELEBRATION, ES_RESET
+Local Variables: NextState
+
+Set NextState to CurrentState
+Based on the state of the CurrentState variable choose one of the following blocks of code:
+	CurrentState is InitFlipbook3Service
+		if ThisEvent is ES_INIT
+			Set the PWM channel frequency
+			Start with motor off
+			Set NextState AwaitFlip1Finished
+		Endif
+	End InitFlipbook2Service block
+
+	CurrentState is Wait4Flip2Done
+		if ThisEvent is ES_F2_DONE
+			Start the motor
+			Start the FLIPBOOK3_INIT_TIMER timer
+			Set NextState Wait4ShortTimeout
+		Endif
+		if ThisEvent is ES_RESET
+			Start the motor
+			Set NextState to Wait4ResetF3
+		Endif
+	End Wait4Flip2Done block
+
+	CurrentState is Wait4ShortTimeout
+		if ThisEvent is ES_TIMEOUT and time corresponds to FLIPBOOK3_INIT_TIMER
+			Stop the motor
+			Post an ES_START_HARVEST to AirService
+			Set NextState to Wait4Harvesting
+		Endif
+		if ThisEvent is ES_RESET
+			Start the motor
+			Set NextState to Wait4ResetF3
+		Endif
+	End Wait4ShortTimeout block
+
+	CurrentState is Wait4Harvesting
+		if ThisEvent is ES_DONE_HARVEST
+			Start the motor
+			Set NextState to Wait4Flip3Done
+		Endif
+		if ThisEvent is ES_RESET
+			Start the motor
+			Set NextState to Wait4ResetF3
+		Endif
+	End Wait4Harvesting block
+
+	CurrentState is Wait4Flip3Done
+		if ThisEvent is ES_F3_DONE
+			Stop the motor
+			Set NextState to Wait4CelebrationF3
+		Endif
+		if ThisEvent is ES_RESET
+			Start the motor
+			Set NextState to Wait4ResetF3
+		Endif
+	End Wait4Flip3Done block
+
+	CurrentState is Wait4CelebrationF3
+		if ThisEvent is ES_CELEBRATION
+			Start the motor 
+		Endif
+		if ThisEvent is ES_RESET
+			Start the motor
+			Set NextState to Wait4ResetF3
+		Endif
+	End Wait4Celebration block
+
+	CurrentState is Wait4ResetF3
+		if ThisEvent is ES_F3_DONE
+			Turn off the motor
+			Post an ES_DONE_INIT to the MainService
+			Set NextState to InitFlip2Service
+		Endif
+	End Wait4ResetF3 block
+End State Machine block
+
+Set CurrentState to NextState
+Return ES_NO_EVENT
+
+End of RunFlip1Service
+
+**************************************************************************
+
+QueryFlip3Service
+Returns the current state of the AirService state machine
+

@@ -1,0 +1,365 @@
+Pseudo-code for the LEDService Module (a service that implements a state machine for the LEDs)
+
+Data private to this module: MyPriority, CurrentState, F1LED_Brightness, F2LED_Brightness, F3LED_Brightness, WaterLED_Brightness	
+
+
+/****************************************************************************/
+InitLEDService
+Take the priorty of this service, returns True
+
+Initialized MyPriority variable with the passed in parameter.
+
+Make sure PWM is initialized in Main
+   Go into the Initial PseudoState
+	initialize and turn on all PWM LEDs
+		set frequency and duty for F1	
+		set frequency and duty for F2
+		set frequency and duty for F3
+		set frequency and duty for water LED
+				
+	set seed GPIO LED to on
+		Initialize the port line to control the seed LED
+		wait for the port to be ready
+		Write to the digital enable register to connect pins 6 to digital I/O ports
+		Set PA6 to be an output
+		Start with seed LED on
+		
+Post the initial transition event
+End of InitLEDService
+
+
+/****************************************************************************/
+  
+PostLEDService
+Takes an event to be posted to the queue, returns True
+
+Post event, passing priority and event variable
+
+End of PostLEDService
+
+/****************************************************************************/
+  
+RunLEDSErvice
+Takes parameter of an event and returns an event or no event if there is no error
+
+Local variable ReturnEvent
+Set NextState to the value of CurrentState
+Set EventType to ReturnEvent to no event assuming no errors
+
+Switch to evaluate states based on CurrentState
+	If CurrentState is InitLEDState
+		If ThisEvent is ES_INIT	
+			set all LEDS to be off OFF
+			set Ramp LED values back to zero
+			Blink all LEDs in Wait for seed / Welcome Mode
+			now put the machine into the actual initial state Waiting4Seed
+		End If ThisEvent is ES_Init
+	End If CurrentState is InitLEDState
+
+	If CurrentState is Waiting4Seed
+		If ThisEvent is a timeout caused by BlinkSeedLEDS
+			call blink seed again and pass true to keep blinking
+				
+		Else If ThisEvent is ES_SEED_DETECTED
+			stop seed LED blink
+			start RampF1LEDS and transition to F1Run State
+		
+		Else If ThisEvent is ES_RESET
+			Post an ES_DONE_INIT to the MainService
+			Return to InitLEDState by assigning that to value of NextState
+	End If CurrentState is Waiting4Seed
+
+	If CurrentState is F1Run
+		if the timer ran out and ThisEVent is from RampF1LEDS
+			Call RampF1LEDS to keep ramping
+		else if ThisEvent is ES_F1_DONE
+			make sure F1 LEDs are set to their full brightness
+			Call BlinkWaterLEDS to start blinking of water leds
+			change NextState to Wait4Watering 
+		else If ThisEvent is ES_RESET
+			Post an ES_DONE_INIT to the MainService
+			Return to InitLEDState by assigning that to value of NextState
+	End If CurrentState is F1Run
+
+	If CurrentState is Wait4Watering
+		if ThisEvent is blink water LEDS
+			Pass true to BlinkWaterLEDS to keep blinking
+		else if ThisEvent is ES_Water
+			if EventParam is less than or equal to minimum accelerometer tilt
+			 	pass false to BlinkWaterLEDS to stop blinking the water LED
+				call RampF2LEDS
+				Assign F2Run to NextState
+		else If ThisEvent is ES_RESET
+			Post an ES_DONE_INIT to the MainService
+			Return to InitLEDState by assigning that to value of NextState
+	End If CurrentState is Wait4Watering
+
+	If CurrentState is F2Run
+		if the timer ran out and event is from RampF2LEDS
+			Call RampF2LEDS to keep ramping
+		else if ThisEvent is ES_WATER
+			If there is more tilt than min tilt change
+				Pass false to BLINKWaterLEDS to stop blinking
+				calculate the water brightness based on the acc value and assign value to WaterPulse
+				Pass WaterPule to RampWaterLEDS start ramping water leds
+			Else if there is not enough tilt
+				Pass true to BlinkWaterLEDS to start blinking again. 
+		else if it's a timeout for blinking the water LEDs, continue blinking
+			Keep blinking water LEDs by calling and passing true
+		else if ThisEvent is ES_F2_DONE
+			Set F2 LEDs to their full brightness
+			turn off the water LEDs
+			Start ramping F3 LEDS
+			Change to F3 state
+		else If ThisEvent is ES_RESET
+			Post an ES_DONE_INIT to the MainService
+			Return to InitLEDState by assigning that to value of NextState
+	End If CurrentState is F2Run
+
+	If CurrentState is F3Run
+		If ThisEvent is ES_DONE_HARVEST
+			Call RampF3LEDS to start ramping F3 LEDS
+		Else if the timer ran out and event is from RampF3LEDS
+			Call RampF3LEDS to keep ramping
+		Else if ThisEVent is ES_F3_DONE
+			Set F3 LEDs to their full brightness
+			Set NextState to Celebration
+			Blink all LEDs by passing true to BlinkAllLEDS
+		Else If ThisEvent is ES_RESET
+			Post an ES_DONE_INIT to the MainService
+			Return to InitLEDState by assigning that to value of NextState
+	End If CurrentState is F3Run
+
+	If CurrentState is Celebration 
+		If ThisEvent is a timeout from BlinkAllLEDS_TIMER
+			Pass true to BlinkAllLEDS to keep blinking
+		Else If ThisEvent is ES_RESET
+			Post an ES_DONE_INIT to the MainService
+			Return to InitLEDState by assigning that to value of NextState
+	End If CurrentState is Celebration
+
+End of State Machine
+
+Set CurrentState to value of NextState
+Return ReturnEvent
+
+End of RunLEDService
+
+
+/****************************************************************************/
+
+QueryLEDService
+Take no parameter and returns the state of the LED state machine
+
+	Return CurrentsState
+
+End of QueryLEDService
+	  
+
+
+/***************************************************************************
+ private functions
+ ***************************************************************************/
+
+RampF1LEDS
+Takes no parameters and returns nothing
+
+static local var Inc initialized to 4
+static local var Full Brightness set to MAX_SAFE_PWM_DUTY
+
+If F1LED_Brightness plus inc is less than or equal to the full brightness
+	add inc to F1LED_Brightness
+Else if F1LED_Brightness plus inc is more than desired brightness
+	set F1LED_Brightness to full brightness
+End if
+
+Set F1 PWM duty to F1LED_Brightness 
+
+If F1LED_Brightness has not reached the full brightness
+	set 1/2 sec timer to wait before posting to LEDService to trigger another increment
+End If 
+
+Return
+
+End RampF1LEDS
+
+
+/****************************************************************************/
+
+F1SetFullBrightness
+Takes nothing, returns nothing
+	set F1 duty to full Brightness
+End F1SetFullBrightness
+	
+
+/****************************************************************************/
+
+
+RampF2LEDS
+Takes no parameters and returns nothing
+
+static local var Inc initialized to 4
+static local var Full Brightness set to MAX_SAFE_PWM_DUTY
+
+If F2LED_Brightness plus inc is less than or equal to the full brightness
+	add inc to F2LED_Brightness
+Else if F2LED_Brightness plus inc is more than desired brightness
+	set F2LED_Brightness to full brightness
+End if
+
+Set F2 PWM duty to F2LED_Brightness 
+
+If F2LED_Brightness has not reached the full brightness
+	set 1/2 sec timer to wait before posting to LEDService to trigger another increment
+End If 
+
+Return
+
+End RampF2LEDS
+
+
+/****************************************************************************/
+
+F2SetFullBrightness
+Takes nothing, returns nothing
+	set F2 duty to full Brightness
+End F2SetFullBrightness
+	
+/****************************************************************************/
+
+RampF3LEDS
+Takes no parameters and returns nothing
+
+static local var Inc initialized to 4
+static local var Full Brightness set to MAX_SAFE_PWM_DUTY
+
+If F3LED_Brightness plus inc is less than or equal to the full brightness
+	add inc to F3LED_Brightness
+Else if F3LED_Brightness plus inc is more than desired brightness
+	set F3LED_Brightness to full brightness
+End if
+
+Set F3 PWM duty to F3LED_Brightness 
+
+If F3LED_Brightness has not reached the full brightness
+	set 1/2 sec timer to wait before posting to LEDService to trigger another increment
+End If 
+
+Return
+
+End RampF3LEDS
+
+
+/****************************************************************************/
+
+F3SetFullBrightness
+Takes nothing, returns nothing
+	set F3 duty to full Brightness
+End F3SetFullBrightness
+	
+
+/****************************************************************************/
+
+RampWaterLEDS
+Takes nothing, returns nothing
+
+static local var Inc initialized to 4
+static local var Full Brightness set to MAX_SAFE_PWM_DUTY
+
+If WaterLED_Brightness plus inc is less than or equal to the full brightness
+	add inc to WaterLED_Brightness
+Else if WaterLED_Brightness plus inc is more than desired brightness
+	set WaterLED_Brightness to full brightness
+End if
+
+Set Water PWM duty to WaterLED_Brightness 
+
+If WaterLED_Brightness has not reached the full brightness
+	set 1/2 sec timer to wait before posting to LEDService to trigger another increment
+End If 
+
+Return
+
+End RampWaterLEDS
+
+
+/****************************************************************************/			
+
+BlinkAllLEDS
+
+Takes boolean called command to determine start or stop blink, returns nothing
+local static var BlinkState initialized to false
+
+if command is true
+	if BlinkState is false
+		set PWM duty high for all F1, F1, F3, and Water LEDS
+		set seed LED GPIO pin high
+		set BlinkState to true
+	else if BlinkState is true
+		set PWM duty low for all F1, F1, F3, and Water LEDS
+		set seed LED GPIO pin low
+		set BlinkState to false
+	end if
+	set BlinkAllLEDS_Timer to wait for 1/2s before posting another blink
+
+else if command is false, meaning blinking should stop
+	set all 4 PWM dutys to low
+	set seed GPIO to low
+end if command is true
+
+return
+
+End of BlinkAllLEDS
+
+/****************************************************************************/			
+
+BlinkWaterLEDS
+
+Takes boolean called command to determine start or stop blink, returns nothing
+local static var BlinkState initialized to false
+
+if command is true
+	if BlinkState is false
+		set PWM duty high for Water LEDS
+		set BlinkState to true
+	else if BlinkState is true
+		set PWM duty low Water LEDS
+		set BlinkState to false
+	end if
+	set BlinkWaterLEDS_Timer to wait for 1/2s before posting another blink
+
+else if command is false, meaning blinking should stop
+	set all Water LED PWM low
+end if command is true
+
+return
+
+End of BlinkWaterLEDS
+
+/****************************************************************************/			
+
+BlinkSeedLEDS
+
+Takes boolean called command to determine start or stop blink, returns nothing
+local static var BlinkState initialized to false
+
+if command is true
+	if BlinkState is false
+		set seed LED GPIO pin high
+		set BlinkState to true
+	else if BlinkState is true
+		set seed LED GPIO pin low
+		set BlinkState to false
+	end if
+	set BlinkSeedLEDS_Timer to wait for 1/2s before posting another blink
+
+else if command is false, meaning blinking should stop
+	set seed GPIO to low
+end if command is true
+
+return
+
+End of BlinkSeedLEDS
+
+
+/****************************************************************************/	

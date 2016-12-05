@@ -1,0 +1,105 @@
+/****************************************************************************
+ Module
+   WaterBucketService.c
+
+ Description
+   Controls water bucket vibration motor
+
+****************************************************************************/
+
+include the PWM library
+the headers to access the GPIO subsystem
+the headers to access the TivaWare Library
+Define acceleration raw values that go roughly from 1800 (90 degrees) to 2600 (0 degrees)
+
+WaterBucketService
+Listens to the water bucket accelerometer and controls the vibration motor. 
+InitWaterService
+Takes a priority number, returns True. 
+	Initialize the MyPriority variable with the passed in parameter.	
+	Initialize the port E line as output to run the vibration motor
+	enable port C 
+	wait for the port to be ready	
+	Initialize the port E line for the accelerometer inputs
+	enable port E 
+	wait for the port to be ready  
+	We set pin PE0 to output the z position read by the accelerometer
+	We set pin PE0 to be the output that feeds into the flipbook2 motor.
+	Initialize the two analog pins that will be read from
+	Initialize the port line to read the accelerometer input
+	Set CurrentState to be InitWaterBucketService
+	Post Event ES_Init to InitWaterBucketService queue (this service)
+End of InitWaterService (return True)
+
+**************************************************************************
+
+RunWaterService (implements the state machine for WaterBucket Service)
+The EventType field of ThisEvent will be one of: ES_INIT, ES_WATER, ES_NO_WATER, ES_CELEBRATION
+Local Variables: NextState
+Set NextState to CurrentState//Based on the state of the CurrentState variable choose one of the following blocks of code:
+	CurrentState is InitWaterBucketService
+		if ThisEvent is ES_INIT
+			Specify that we are not checking for water
+			Set NextState Wait4Flip1Done
+		Endif
+	End InitWaterBucketService block
+	CurrentState is Wait4Flip1Done
+		if ThisEvent is ES_F1_DONE
+			Set NextState Wait4Water
+		if ThisEvent is ES_RESET
+			Turn off motor
+			post an ES_DONE_INIT to the MainService
+		Set NextState InitWaterBucketService
+	End Wait4Flip1Done block
+	CurrentState is Wait4Water
+		if ThisEvent is ES_WATER
+			if it's enough tilt for the vibration motor
+				Turn on the vibration motor
+			else there isn't enough tilt	
+				Turn off the vibration motor
+		if ThisEvent is ES_F2_DONE
+			stop checking for water 			
+			Turn off the vibration motor			
+			SetNextState DoneWatering
+		if ThisEvent is ES_RESET
+			Turn off motor
+			post an ES_DONE_INIT to the MainService
+			Set NextState InitWaterBucketService
+	End Wait4Water block
+
+	CurrentState is DoneWatering
+		if ThisEvent is ES_RESET
+			post an ES_DONE_INIT to the MainService
+			Set NextState InitWaterBucketService		
+	End DoneWatering
+	Set CurrentState to NextState
+	Return ES_NO_EVENT
+End of RunWaterBucketService
+
+**************************************************************************
+
+Check4Water
+Takes no parameters, returns True if an event posted
+Local ReturnVal = False, CurrentAccState
+	Set CurrentAccState to state read from port pin
+	if we are checking for water
+		PostEvent ES_WATER to water list
+	Return ReturnVal
+End of Check4Water
+
+**************************************************************************
+
+private TiltToDutyCycle
+Returns the current tilt (Tilt), represented as an angle tan(z/x).
+	Read the values for z from PE0;
+	filter signal
+	save prev value
+	return the filtered value
+End of TiltToDutyCycle
+
+**************************************************************************
+
+PostWaterBucketService
+Post Event to ES_SERVICES
+
+   

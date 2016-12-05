@@ -1,0 +1,100 @@
+/****************************************************************************
+ Module
+   Flipbook2Service.c
+
+   Controls F2 motor that spins the flipbook's animations.
+
+****************************************************************************/
+
+InitFlip2Service
+Takes a priority number, returns True. 
+	Initialize the MyPriority variable with the passed in parameter.
+	Initialize the port line to run Flipbook 2 motor 
+	Enable PWM
+	Set CurrentState to be InitFlipbook2Service
+	Post Event ES_Init to Flipbook2Service queue (this service)
+End of InitializeButton (return True)
+
+**************************************************************************
+
+PostFlip2Service
+Posts an event to this state machine's queue, returns false if the Enqueue operation failed, true otherwise
+End PostFlip2Service
+
+**************************************************************************
+
+RunFlip2Service
+(implements the state machine for Flipbook1 Service)
+The EventType field of ThisEvent will be one of: ES_INIT, ES_F1_DONE, ES_F2_DONE, ES_WATER, ES_CELEBRATION, ES_RESET
+Local Variables: NextState
+
+Set NextState to CurrentState
+Based on the state of the CurrentState variable choose one of the following blocks of code:
+	CurrentState is InitFlipbook2Service
+		if ThisEvent is ES_INIT
+			Set the PWM channel frequency
+			Set NextState AwaitFlip1Finished
+		Endif
+	End InitFlipbook2Service block
+
+	CurrentState is AwaitFlip1Finished
+		if ThisEvent is ES_F1_DONE
+			Set NextState AwaitingWater
+		Endif
+		if ThisEvent is ES_RESET
+			Start the motor
+			Set NextState to Wait4ResetF2
+		Endif
+	End AwaitFlip1Finished block
+
+	CurrentState is AwaitingWater
+		if ThisEvent is ES_WATER
+			if ThisEvent.EventParam is close to zero tilt
+				Stop the motor
+			Else 
+				Start the motor
+				Calculate the scaled parameter from accelerometer value to PWM as
+				(((MAX_PWM - MIN_PWM)*(ThisEvent.EventParam - MIN_ACC))/(MAX_ACC-MIN_ACC)) + MIN_PWM
+				Start the motor with duty cycle at the scaled parameter
+			Endif
+		Endif
+		if ThisEvent is ES_F2_DONE
+			Turn off the motor
+			Start the motor to keep running at a constant rate
+			Set NextState to Wait4Celebration
+		Endif
+		if ThisEvent is ES_RESET
+			Start the motor
+			Set NextState to Wait4ResetF2
+		Endif
+	End AwaitingWater block
+
+	CurrentState is Wait4Celebration
+		if ThisEvent is ES_CELEBRATION
+			Start the motor 
+		Endif
+		if ThisEvent is ES_RESET
+			Start the motor
+			Set NextState to Wait4ResetF2
+		Endif
+	End Wait4Celebration block
+
+	CurrentState is Wait4ResetF2
+		if ThisEvent is ES_F2_DONE
+			Turn off the motor
+			Post an ES_DONE_INIT to the MainService
+			Set NextState to InitFlip2Service
+		Endif
+	End Wait4ResetF2 block
+End State Machine block
+
+Set CurrentState to NextState
+Return ES_NO_EVENT
+
+End of RunFlip1Service
+
+**************************************************************************
+
+QueryFlip2Service
+Returns the current state of the AirService state machine
+

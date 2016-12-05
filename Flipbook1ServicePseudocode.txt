@@ -1,0 +1,142 @@
+/****************************************************************************
+ Module
+   Flipbook1Service.c
+
+   Controls F1 motor that spins the flipbook's animations.
+
+****************************************************************************/
+
+InitFlip1Service
+Takes a priority number, returns True. 
+	Initialize the MyPriority variable with the passed in parameter.
+	Initialize the port line to run Flipbook 1 motor 
+	Enable PWM
+	Initialize the port line to control the LEDs on Flipbook 1
+	Set CurrentState to be InitFlipbook1Service
+	Post Event ES_Init to Flip1Service queue (this service)
+End of InitializeButton (return True)
+
+
+**************************************************************************
+
+PostFlip1Service
+Posts an event to this state machine's queue, returns false if the Enqueue operation failed, true otherwise
+End PostFlip1Service
+
+**************************************************************************
+
+RunFlip1Service
+(implements the state machine for Flipbook1 Service)
+The EventType field of ThisEvent will be one of: ES_INIT, ES_SEED_DETECTED, ES_F1_DONE, ES_CELEBRATION, ES_RESET
+Local Variables: NextState
+
+Set NextState to CurrentState
+Based on the state of the CurrentState variable choose one of the following blocks of code:
+	CurrentState is InitFlip1Service
+		if ThisEvent is ES_INIT
+			Set the PWM channel frequency
+			Set NextState Wait4Seed
+		Endif
+	End InitFlipbook1Service block
+
+	CurrentState is Wait4Seed
+		if ThisEvent is ES_SEED_DETECTED
+			Set pulsewidth to start the motor 
+			Set NextState Wait4Stop
+		Endif
+		if ThisEvent is ES_RESET
+			Start the motor
+			Set NextState to Wait4ResetF1
+		Endif
+	End Wait4Seed block
+
+	CurrentState is Wait4Stop
+		if ThisEvent is ES_F1_DONE
+			Stop the motor
+			Set NextState Wait4Celebration
+		Endif
+		if ThisEvent is ES_RESET
+			Start the motor
+			Set NextState to Wait4ResetF1
+		Endif
+	End Wait4Stop block
+
+	CurrentState is Wait4Celebration
+		if ThisEvent is ES_CELEBRATION
+			Start the motor 
+		Endif
+		if ThisEvent is ES_RESET
+			Start the motor
+			Set NextState to Wait4ResetF1
+		Endif
+	End Wait4Celebration block
+
+	CurrentState is Wait4ResetF1
+		if ThisEvent is ES_F1_DONE
+			Turn off the motor
+			Post an ES_DONE_INIT to the MainService
+			Set NextState to InitFlip1Service
+		Endif
+	End Wait4ResetF1 block
+
+End State Machine
+
+	Set CurrentState to NextState
+	Return ES_NO_EVENT
+End of RunFlip1Service
+
+**************************************************************************
+
+QueryAirService
+Returns the current state of the AirService state machine
+
+**************************************************************************
+
+
+**************************************************************************
+
+Check4IR_1
+Takes no parameters, returns True if an event posted
+	Local ReturnVal = False, CurrentAccState
+	Set CurrentIR_1State to state read from port pin
+	If the CurrentIR_1State is different from LastIR_1State
+		Set ReturnVal = True
+		If CurrentIR_1State is Hi (hand is there)
+			Post ES_IR1_HI to AirService
+		Endif
+	Endif
+	Set LastAccState to the CurrentAccState
+	Return ReturnVal
+End of Check4IR_1
+
+**************************************************************************
+
+Check4IR_2
+Takes no parameters, returns True if an event posted
+	Local ReturnVal = False, CurrentAccState
+	Set CurrentIR_1State to state read from port pin
+	If the CurrentIR_2State is different from LastIR_2State
+		Set ReturnVal = True
+		If CurrentIR_2State is Hi (hand is there)
+			Post ES_IR2_HI to AirService
+		Endif
+	Endif
+	Set LastAccState to the CurrentAccState
+	Return ReturnVal
+End of Check4IR_2
+
+**************************************************************************
+
+
+/***************************************************************************
+ private functions
+**************************************************************************
+
+UpdateIR1State
+Return the current state of the IR1 pin
+
+**************************************************************************
+
+UpdateIR2State
+Return the current state of the IR2 pin
+
